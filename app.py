@@ -39,45 +39,67 @@ def run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda):
 # =========================
 # UI
 # =========================
-st.title("🦠 SEIQR Disease Simulation (Scenario Comparison)")
+st.title("🦠 SEIQR Disease Simulation Dashboard")
 
 st.markdown("""
-Compare epidemic spread under different quarantine strategies:
-- No quarantine vs Strong quarantine
+Interactive epidemiological model to simulate disease spread and evaluate quarantine effectiveness.
 """)
 
-st.sidebar.header("Parameters")
+st.sidebar.header("Model Parameters")
 
-beta = st.sidebar.number_input("Transmission rate (β)", 0.0001, 0.01, 0.002, 0.0001)
+beta = st.sidebar.number_input(
+    "Transmission rate (β)",
+    min_value=0.0001,
+    max_value=0.01,
+    value=0.002,
+    step=0.0001,
+    format="%.4f"
+)
+
 sigma = st.sidebar.slider("Incubation rate (σ)", 0.1, 1.0, 0.5, 0.1)
 gamma = st.sidebar.slider("Recovery rate (γ)", 0.1, 1.0, 0.3, 0.1)
 gamma_q = st.sidebar.slider("Quarantine recovery rate (γq)", 0.1, 1.0, 0.1, 0.1)
 delta = st.sidebar.slider("Quarantine rate (δ)", 0.0, 0.5, 0.2, 0.01)
-mu = st.sidebar.number_input("Natural death rate (μ)", 0.0, 0.05, 0.01, 0.001)
-Lambda = st.sidebar.number_input("Birth rate (Λ)", 0.0, 20.0, 10.0, 0.5)
+
+mu = st.sidebar.number_input(
+    "Natural death rate (μ)",
+    min_value=0.0,
+    max_value=0.05,
+    value=0.01,
+    step=0.001,
+    format="%.3f"
+)
+
+Lambda = st.sidebar.number_input(
+    "Birth/entry rate (Λ)",
+    min_value=0.0,
+    max_value=20.0,
+    value=10.0,
+    step=0.5
+)
 
 
 # =========================
-# RUN TWO SCENARIOS
+# RUN SIMULATIONS
 # =========================
 
-# Scenario 1: No quarantine
+# No quarantine scenario
 sol_no_q = run_model(beta, sigma, gamma, gamma_q, 0.0, mu, Lambda)
 
-# Scenario 2: With quarantine
+# With quarantine scenario
 sol_q = run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda)
 
 
 # =========================
-# METRICS (compare peaks)
+# METRICS
 # =========================
 I_peak_noq = np.max(sol_no_q.y[2])
 I_peak_q = np.max(sol_q.y[2])
 
-reduction = (I_peak_noq - I_peak_q) / I_peak_noq * 100
+reduction = (I_peak_noq - I_peak_q) / I_peak_noq * 100 if I_peak_noq > 0 else 0
 
 
-st.subheader("📊 Comparison Results")
+st.subheader("📊 Key Results Comparison")
 
 col1, col2, col3 = st.columns(3)
 
@@ -92,14 +114,11 @@ with col3:
 
 
 # =========================
-# PLOT COMPARISON
+# PLOT
 # =========================
 fig, ax = plt.subplots()
 
-# No quarantine
 ax.plot(sol_no_q.t, sol_no_q.y[2], "--r", label="Infected (No Quarantine)")
-
-# With quarantine
 ax.plot(sol_q.t, sol_q.y[2], "-b", label="Infected (With Quarantine)")
 
 ax.set_xlabel("Time (days)")
