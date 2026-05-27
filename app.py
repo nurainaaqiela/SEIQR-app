@@ -4,7 +4,7 @@ from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 
 # =========================
-# MODEL
+# SEIQR MODEL
 # =========================
 def seiqr(t, y, beta, sigma, gamma, gamma_q, delta, mu, Lambda):
     S, E, I, Q, R = y
@@ -37,89 +37,77 @@ def run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda):
 
 
 # =========================
+# BASIC R0 (simplified SEIQR form)
+# =========================
+def compute_r0(beta, sigma, gamma, delta, mu):
+    # simplified approximation for SEIQR-style models
+    return beta / (gamma + delta + mu)
+
+
+# =========================
 # UI
 # =========================
-st.title("🦠 SEIQR Disease Simulator")
+st.title("🦠 SEIQR Epidemiology Research Dashboard")
 
-st.sidebar.header("Parameters")
-
-# -------------------------
-# FIXED SLIDERS (IMPORTANT)
-# -------------------------
-
-beta = st.sidebar.slider(
-    "Transmission rate (β)",
-    min_value=0.0001,
-    max_value=0.01,
-    value=0.002,
-    step=0.0001,
-    format="%.4f"
-)
-
-sigma = st.sidebar.slider(
-    "Incubation rate (σ)",
-    0.1, 1.0, 0.5, 0.1
-)
-
-gamma = st.sidebar.slider(
-    "Recovery rate (γ)",
-    0.1, 1.0, 0.3, 0.1
-)
-
-gamma_q = st.sidebar.slider(
-    "Quarantine recovery rate (γq)",
-    0.1, 1.0, 0.1, 0.1
-)
-
-delta = st.sidebar.slider(
-    "Quarantine rate (δ)",
-    0.0, 0.5, 0.2, 0.01
-)
-
-mu = st.sidebar.slider(
-    "Natural death rate (μ)",
-    0.0, 0.05, 0.01, 0.001
-)
-
-Lambda = st.sidebar.slider(
-    "Birth rate (Λ)",
-    0.0, 20.0, 10.0, 0.5
-)
-
+st.markdown("""
+Interactive simulation of disease spread using SEIQR model.
+Includes quarantine effects and epidemiological indicators.
+""")
 
 # =========================
 # MODE
 # =========================
 mode = st.sidebar.radio(
-    "Mode",
+    "Simulation Mode",
     ["Without Quarantine", "With Quarantine"]
 )
 
-if mode == "Without Quarantine":
-    delta = 0.0
+st.sidebar.header("Model Parameters")
+
+# =========================
+# STABLE INPUTS (FIXED FOR IPAD)
+# =========================
+beta = st.sidebar.slider("Transmission rate (β)", 0.0001, 0.01, 0.002, 0.0001)
+sigma = st.sidebar.slider("Incubation rate (σ)", 0.1, 1.0, 0.5, 0.1)
+gamma = st.sidebar.slider("Recovery rate (γ)", 0.1, 1.0, 0.3, 0.1)
+gamma_q = st.sidebar.slider("Quarantine recovery rate (γq)", 0.1, 1.0, 0.1, 0.1)
+delta_user = st.sidebar.slider("Quarantine rate (δ)", 0.0, 0.5, 0.2, 0.01)
+
+mu = st.sidebar.slider("Natural death rate (μ)", 0.0, 0.05, 0.01, 0.001)
+Lambda = st.sidebar.slider("Birth rate (Λ)", 0.0, 20.0, 10.0, 0.5)
 
 
 # =========================
-# RUN
+# APPLY MODE
+# =========================
+delta = 0.0 if mode == "Without Quarantine" else delta_user
+
+
+# =========================
+# RUN SIMULATION
 # =========================
 sol = run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda)
 
 
 # =========================
-# RESULTS
+# METRICS
 # =========================
 I_peak = np.max(sol.y[2])
 t_peak = sol.t[np.argmax(sol.y[2])]
+R0 = compute_r0(beta, sigma, gamma, delta, mu)
 
-st.subheader("📊 Results")
+st.subheader("📊 Key Epidemiological Indicators")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric("Peak Infected", f"{I_peak:.2f}")
 
 with col2:
     st.metric("Time of Peak", f"{t_peak:.1f} days")
+
+with col3:
+    st.metric("Basic Reproduction Number (R₀)", f"{R0:.2f}")
 
 
 # =========================
@@ -135,7 +123,7 @@ ax.plot(sol.t, sol.y[4], label="R")
 
 ax.set_xlabel("Time (days)")
 ax.set_ylabel("Population")
-ax.set_title("SEIQR Simulation")
+ax.set_title(f"SEIQR Simulation - {mode}")
 ax.legend()
 
 st.pyplot(fig)
