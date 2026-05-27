@@ -37,21 +37,20 @@ def run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda):
 
 
 # =========================
-# BASIC R0 (simplified SEIQR form)
+# R0 FUNCTION
 # =========================
-def compute_r0(beta, sigma, gamma, delta, mu):
-    # simplified approximation for SEIQR-style models
+def compute_r0(beta, gamma, delta, mu):
     return beta / (gamma + delta + mu)
 
 
 # =========================
 # UI
 # =========================
-st.title("🦠 SEIQR Epidemiology Research Dashboard")
+st.title("🦠 SEIQR Epidemiology Simulator (Fixed Version)")
 
 st.markdown("""
-Interactive simulation of disease spread using SEIQR model.
-Includes quarantine effects and epidemiological indicators.
+This interactive model simulates disease spread and quarantine effects.
+Now supports realistic R₀ < 1 and R₀ > 1 behavior.
 """)
 
 # =========================
@@ -65,36 +64,42 @@ mode = st.sidebar.radio(
 st.sidebar.header("Model Parameters")
 
 # =========================
-# STABLE INPUTS (FIXED FOR IPAD)
+# FIXED SLIDERS (IMPORTANT CHANGE)
 # =========================
-beta = st.sidebar.slider("Transmission rate (β)", 0.0001, 0.01, 0.002, 0.0001)
+
+beta = st.sidebar.slider(
+    "Transmission rate (β)",
+    min_value=0.0,
+    max_value=2.0,
+    value=0.5,
+    step=0.01
+)
+
 sigma = st.sidebar.slider("Incubation rate (σ)", 0.1, 1.0, 0.5, 0.1)
 gamma = st.sidebar.slider("Recovery rate (γ)", 0.1, 1.0, 0.3, 0.1)
 gamma_q = st.sidebar.slider("Quarantine recovery rate (γq)", 0.1, 1.0, 0.1, 0.1)
-delta_user = st.sidebar.slider("Quarantine rate (δ)", 0.0, 0.5, 0.2, 0.01)
+delta_input = st.sidebar.slider("Quarantine rate (δ)", 0.0, 0.5, 0.2, 0.01)
 
 mu = st.sidebar.slider("Natural death rate (μ)", 0.0, 0.05, 0.01, 0.001)
 Lambda = st.sidebar.slider("Birth rate (Λ)", 0.0, 20.0, 10.0, 0.5)
 
-
 # =========================
 # APPLY MODE
 # =========================
-delta = 0.0 if mode == "Without Quarantine" else delta_user
-
+delta = 0.0 if mode == "Without Quarantine" else delta_input
 
 # =========================
 # RUN SIMULATION
 # =========================
 sol = run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda)
 
-
 # =========================
 # METRICS
 # =========================
 I_peak = np.max(sol.y[2])
 t_peak = sol.t[np.argmax(sol.y[2])]
-R0 = compute_r0(beta, sigma, gamma, delta, mu)
+
+R0 = compute_r0(beta, gamma, delta, mu)
 
 st.subheader("📊 Key Epidemiological Indicators")
 
@@ -107,8 +112,15 @@ with col2:
     st.metric("Time of Peak", f"{t_peak:.1f} days")
 
 with col3:
-    st.metric("Basic Reproduction Number (R₀)", f"{R0:.2f}")
+    st.metric("R₀ Value", f"{R0:.2f}")
 
+# =========================
+# R0 INTERPRETATION
+# =========================
+if R0 < 1:
+    st.success("🟢 Disease will die out (R₀ < 1)")
+else:
+    st.error("🔴 Outbreak likely (R₀ > 1)")
 
 # =========================
 # PLOT
