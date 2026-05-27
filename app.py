@@ -5,10 +5,10 @@ from scipy.integrate import solve_ivp
 
 st.set_page_config(page_title="SEIQR HFMD Simulator", layout="wide")
 
-st.title("🚀 SEIQR HFMD Simulator")
+st.title("🚀 SEIQR HFMD Simulator (Stable Version)")
 
 # =========================
-# ORIGINAL MODEL (UNCHANGED)
+# YOUR ORIGINAL MODEL (UNCHANGED)
 # =========================
 def seiqr(t, y, beta, sigma, gamma, gamma_q, delta, mu, Lambda):
     S, E, I, Q, R = y
@@ -22,73 +22,70 @@ def seiqr(t, y, beta, sigma, gamma, gamma_q, delta, mu, Lambda):
     return [dS, dE, dI, dQ, dR]
 
 # =========================
-# SAFE DEFAULT INIT (IMPORTANT FIX)
-# =========================
-defaults = {
-    "beta": 0.000003,
-    "sigma": 0.2,
-    "gamma": 0.3,
-    "gamma_q": 0.25,
-    "delta": 0.2,
-    "mu": 0.01,
-    "Lambda": 10
-}
-
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
-
-# =========================
-# SIDEBAR
+# SAFE SLIDERS (NO SESSION STATE)
 # =========================
 st.sidebar.header("Parameters")
 
-beta = st.sidebar.slider("β", 0.0, 0.00001, float(st.session_state.beta))
-sigma = st.sidebar.slider("σ", 0.0, 1.0, float(st.session_state.sigma))
-gamma = st.sidebar.slider("γ", 0.0, 1.0, float(st.session_state.gamma))
-gamma_q = st.sidebar.slider("γq", 0.0, 1.0, float(st.session_state.gamma_q))
-delta = st.sidebar.slider("δ", 0.0, 1.0, float(st.session_state.delta))
-mu = st.sidebar.slider("μ", 0.0, 0.1, float(st.session_state.mu))
-Lambda = st.sidebar.slider("Λ", 0.0, 20.0, float(st.session_state.Lambda))
+beta = st.sidebar.slider("β", 0.0, 0.00001, 0.000003)
+sigma = st.sidebar.slider("σ", 0.0, 1.0, 0.2)
+gamma = st.sidebar.slider("γ", 0.0, 1.0, 0.3)
+gamma_q = st.sidebar.slider("γq", 0.0, 1.0, 0.25)
+delta = st.sidebar.slider("δ", 0.0, 1.0, 0.2)
+mu = st.sidebar.slider("μ", 0.0, 0.1, 0.01)
+Lambda = st.sidebar.slider("Λ", 0.0, 20.0, 10.0)
 
 # =========================
-# R0 (safe)
+# R0 (SAFE)
 # =========================
-R0 = (beta * sigma) / ((sigma + mu) * (gamma + delta + mu) + 1e-9)
+den = (sigma + mu) * (gamma + delta + mu)
+R0 = (beta * sigma) / (den + 1e-9)
 
-st.metric("R₀", f"{R0:.3f}")
+st.subheader("R₀")
+st.metric("Value", f"{R0:.4f}")
 
 if R0 < 1:
-    st.success("Disease dies out")
+    st.success("🟢 Disease dies out")
 elif R0 < 1.5:
-    st.warning("Endemic level")
+    st.warning("🟡 Endemic level")
 else:
-    st.error("Outbreak")
+    st.error("🔴 Outbreak expected")
 
 # =========================
-# SIMULATION
+# INITIAL CONDITIONS
 # =========================
-t_span = (0, 160)
-t_eval = np.linspace(0, 160, 400)
-
 y0 = [990, 5, 5, 0, 0]
 
-sol = solve_ivp(
-    seiqr,
-    t_span,
-    y0,
-    t_eval=t_eval,
-    args=(beta, sigma, gamma, gamma_q, delta, mu, Lambda)
-)
+# =========================
+# TIME GRID (SAFE)
+# =========================
+t_span = (0, 160)
+t_eval = np.linspace(0, 160, 300)
 
-S, E, I, Q, R = sol.y
+# =========================
+# SOLVE SYSTEM (SAFE WRAPPER)
+# =========================
+try:
+    sol = solve_ivp(
+        seiqr,
+        t_span,
+        y0,
+        t_eval=t_eval,
+        args=(beta, sigma, gamma, gamma_q, delta, mu, Lambda),
+        method="RK45"
+    )
 
-fig, ax = plt.subplots()
-ax.plot(S, label="S")
-ax.plot(E, label="E")
-ax.plot(I, label="I")
-ax.plot(Q, label="Q")
-ax.plot(R, label="R")
-ax.legend()
+    S, E, I, Q, R = sol.y
 
-st.pyplot(fig)
+    fig, ax = plt.subplots()
+    ax.plot(S, label="S")
+    ax.plot(E, label="E")
+    ax.plot(I, label="I")
+    ax.plot(Q, label="Q")
+    ax.plot(R, label="R")
+    ax.legend()
+
+    st.pyplot(fig)
+
+except Exception as e:
+    st.error("Simulation failed. Try adjusting parameters.")
+    st.write(e)
