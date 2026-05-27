@@ -1,141 +1,162 @@
 import streamlit as st
 import numpy as np
-from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 
 # =========================
-# SEIQR MODEL
+# PAGE CONFIG
 # =========================
-def seiqr(t, y, beta, sigma, gamma, gamma_q, delta, mu, Lambda):
-    S, E, I, Q, R = y
+st.set_page_config(page_title="SEIQR HFMD Simulator", layout="wide")
 
-    dS = Lambda - beta * S * I - mu * S
-    dE = beta * S * I - (sigma + mu) * E
-    dI = sigma * E - (gamma + delta + mu) * I
-    dQ = delta * I - (gamma_q + mu) * Q
-    dR = gamma * I + gamma_q * Q - mu * R
-
-    return [dS, dE, dI, dQ, dR]
-
+st.title("🚀 SEIQR HFMD Epidemic Simulator")
+st.write("Interactive model with R₀ feedback, presets, and outbreak prediction")
 
 # =========================
-# SOLVER
+# R0 FUNCTION (simplified SEIQR)
+# R0 = beta / (gamma + delta + mu)
 # =========================
-def run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda):
-
-    y0 = [1000, 10, 5, 0, 0]
-    t_eval = np.linspace(0, 160, 800)
-
-    sol = solve_ivp(
-        lambda t, y: seiqr(t, y, beta, sigma, gamma, gamma_q, delta, mu, Lambda),
-        (0, 160),
-        y0,
-        t_eval=t_eval
-    )
-
-    return sol
-
+def compute_R0(beta, gamma, delta, mu):
+    return beta / (gamma + delta + mu + 1e-9)
 
 # =========================
-# R0 FUNCTION
+# PRESETS
 # =========================
-def compute_r0(beta, gamma, delta, mu):
-    return beta / (gamma + delta + mu)
-
+presets = {
+    "🟢 Disease dies out (R₀ < 1)": {
+        "beta": 0.002,
+        "gamma": 0.3,
+        "delta": 0.4,
+        "mu": 0.01,
+        "sigma": 0.2
+    },
+    "🔴 Outbreak scenario (R₀ > 1)": {
+        "beta": 0.006,
+        "gamma": 0.15,
+        "delta": 0.1,
+        "mu": 0.01,
+        "sigma": 0.1
+    },
+    "⚖️ Balanced endemic": {
+        "beta": 0.004,
+        "gamma": 0.25,
+        "delta": 0.2,
+        "mu": 0.01,
+        "sigma": 0.15
+    }
+}
 
 # =========================
-# UI
+# SIDEBAR CONTROLS
 # =========================
-st.title("🦠 SEIQR Epidemiology Simulator (Fixed Version)")
+st.sidebar.header("⚙️ Controls")
 
-st.markdown("""
-This interactive model simulates disease spread and quarantine effects.
-Now supports realistic R₀ < 1 and R₀ > 1 behavior.
+preset_choice = st.sidebar.selectbox("Choose preset", list(presets.keys()))
+
+if st.sidebar.button("Apply preset"):
+    st.session_state.update(presets[preset_choice])
+
+# default values (safe init)
+beta = st.sidebar.slider("β (infection rate)", 0.0, 0.01, st.session_state.get("beta", 0.003))
+gamma = st.sidebar.slider("γ (recovery rate)", 0.0, 1.0, st.session_state.get("gamma", 0.2))
+delta = st.sidebar.slider("δ (quarantine rate)", 0.0, 1.0, st.session_state.get("delta", 0.2))
+mu = st.sidebar.slider("μ (natural loss)", 0.0, 0.1, st.session_state.get("mu", 0.01))
+sigma = st.sidebar.slider("σ (incubation)", 0.0, 1.0, st.session_state.get("sigma", 0.1))
+
+# =========================
+# R0 CALCULATION
+# =========================
+R0 = compute_R0(beta, gamma, delta, mu)
+
+# =========================
+# OUTBREAK MESSAGE
+# =========================
+if R0 < 1:
+    status = "🟢 Disease will DIE OUT"
+elif R0 < 1.5:
+    status = "🟡 Low-level transmission"
+else:
+    status = "🔴 ⚠️ OUTBREAK EXPECTED"
+
+st.subheader("📊 Epidemic Status")
+st.write(status)
+
+# =========================
+# R0 GAUGE (simple bar)
+# =========================
+st.subheader("📈 R₀ Indicator")
+
+col1, col2, col3 = st.columns(3)
+col1.metric("R₀ Value", f"{R0:.2f}")
+
+progress = min(R0 / 3.0, 1.0)
+st.progress(progress)
+
+st.caption("Green < 1 | Yellow 1–1.5 | Red > 1.5")
+
+# =========================
+# REAL-WORLD INTERPRETATION
+# =========================
+st.subheader("🌍 Real-world interpretation")
+
+st.write(f"""
+- β (contact rate): school crowding, hygiene level  
+- γ (recovery): healthcare efficiency  
+- δ (quarantine): isolation effectiveness  
+- σ (incubation): environmental / temperature influence  
 """)
 
 # =========================
-# MODE
+# SIMPLE SEIQR SIMULATION
 # =========================
-mode = st.sidebar.radio(
-    "Simulation Mode",
-    ["Without Quarantine", "With Quarantine"]
-)
+st.subheader("📉 Infection Curve Simulation")
 
-st.sidebar.header("Model Parameters")
+N = 1000
+days = 160
 
-# =========================
-# FIXED SLIDERS (IMPORTANT CHANGE)
-# =========================
+S = np.zeros(days)
+E = np.zeros(days)
+I = np.zeros(days)
+Q = np.zeros(days)
+R = np.zeros(days)
 
-beta = st.sidebar.slider(
-    "Transmission rate (β)",
-    min_value=0.0,
-    max_value=2.0,
-    value=0.5,
-    step=0.01
-)
+S[0] = N - 1
+E[0] = 0
+I[0] = 1
+Q[0] = 0
+R[0] = 0
 
-sigma = st.sidebar.slider("Incubation rate (σ)", 0.1, 1.0, 0.5, 0.1)
-gamma = st.sidebar.slider("Recovery rate (γ)", 0.1, 1.0, 0.3, 0.1)
-gamma_q = st.sidebar.slider("Quarantine recovery rate (γq)", 0.1, 1.0, 0.1, 0.1)
-delta_input = st.sidebar.slider("Quarantine rate (δ)", 0.0, 0.5, 0.2, 0.01)
+dt = 1
 
-mu = st.sidebar.slider("Natural death rate (μ)", 0.0, 0.05, 0.01, 0.001)
-Lambda = st.sidebar.slider("Birth rate (Λ)", 0.0, 20.0, 10.0, 0.5)
+for t in range(1, days):
+    dS = -beta * S[t-1] * I[t-1] / N
+    dE = beta * S[t-1] * I[t-1] / N - sigma * E[t-1]
+    dI = sigma * E[t-1] - (gamma + delta) * I[t-1]
+    dQ = delta * I[t-1] - gamma * Q[t-1]
+    dR = gamma * (I[t-1] + Q[t-1])
 
-# =========================
-# APPLY MODE
-# =========================
-delta = 0.0 if mode == "Without Quarantine" else delta_input
+    S[t] = S[t-1] + dS * dt
+    E[t] = E[t-1] + dE * dt
+    I[t] = I[t-1] + dI * dt
+    Q[t] = Q[t-1] + dQ * dt
+    R[t] = R[t-1] + dR * dt
 
-# =========================
-# RUN SIMULATION
-# =========================
-sol = run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda)
-
-# =========================
-# METRICS
-# =========================
-I_peak = np.max(sol.y[2])
-t_peak = sol.t[np.argmax(sol.y[2])]
-
-R0 = compute_r0(beta, gamma, delta, mu)
-
-st.subheader("📊 Key Epidemiological Indicators")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("Peak Infected", f"{I_peak:.2f}")
-
-with col2:
-    st.metric("Time of Peak", f"{t_peak:.1f} days")
-
-with col3:
-    st.metric("R₀ Value", f"{R0:.2f}")
-
-# =========================
-# R0 INTERPRETATION
-# =========================
-if R0 < 1:
-    st.success("🟢 Disease will die out (R₀ < 1)")
-else:
-    st.error("🔴 Outbreak likely (R₀ > 1)")
-
-# =========================
-# PLOT
-# =========================
 fig, ax = plt.subplots()
-
-ax.plot(sol.t, sol.y[0], label="S")
-ax.plot(sol.t, sol.y[1], label="E")
-ax.plot(sol.t, sol.y[2], label="I")
-ax.plot(sol.t, sol.y[3], label="Q")
-ax.plot(sol.t, sol.y[4], label="R")
-
-ax.set_xlabel("Time (days)")
-ax.set_ylabel("Population")
-ax.set_title(f"SEIQR Simulation - {mode}")
+ax.plot(I, label="Infected")
+ax.plot(E, label="Exposed")
+ax.plot(Q, label="Quarantined")
+ax.plot(R, label="Recovered")
+ax.set_title("SEIQR Dynamics")
 ax.legend()
 
 st.pyplot(fig)
+
+# =========================
+# SUMMARY INSIGHT
+# =========================
+st.subheader("🧠 Automatic Insight")
+
+if R0 < 1:
+    st.success("No major outbreak. Control measures are effective.")
+elif R0 < 1.5:
+    st.warning("Endemic persistence possible. Improve quarantine or reduce contact rate.")
+else:
+    st.error("High outbreak risk. Immediate intervention required (reduce β or increase δ).")
