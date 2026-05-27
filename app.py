@@ -19,7 +19,7 @@ def seiqr(t, y, beta, sigma, gamma, gamma_q, delta, mu, Lambda):
 
 
 # =========================
-# SIMULATION FUNCTION
+# SOLVER
 # =========================
 def run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda):
 
@@ -39,105 +39,72 @@ def run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda):
 # =========================
 # UI
 # =========================
-st.title("🦠 SEIQR Disease Simulation App")
+st.title("🦠 SEIQR Disease Simulation (Scenario Comparison)")
 
 st.markdown("""
-This simulator models disease spread using the SEIQR framework:
-Susceptible → Exposed → Infectious → Quarantined → Recovered
+Compare epidemic spread under different quarantine strategies:
+- No quarantine vs Strong quarantine
 """)
 
+st.sidebar.header("Parameters")
 
-# =========================
-# INPUT PARAMETERS
-# =========================
-
-st.sidebar.header("Model Parameters")
-
-beta = st.sidebar.number_input(
-    "Transmission rate (β)",
-    min_value=0.0001,
-    max_value=0.01,
-    value=0.002,
-    step=0.0001,
-    format="%.4f"
-)
-
-sigma = st.sidebar.slider(
-    "Incubation rate (σ)",
-    0.1, 1.0, 0.5, 0.1
-)
-
-gamma = st.sidebar.slider(
-    "Recovery rate (γ)",
-    0.1, 1.0, 0.3, 0.1
-)
-
-gamma_q = st.sidebar.slider(
-    "Quarantine recovery rate (γq)",
-    0.1, 1.0, 0.1, 0.1
-)
-
-delta = st.sidebar.slider(
-    "Quarantine rate (δ)",
-    0.0, 0.5, 0.2, 0.01
-)
-
-mu = st.sidebar.number_input(
-    "Natural death rate (μ)",
-    min_value=0.0,
-    max_value=0.05,
-    value=0.01,
-    step=0.001,
-    format="%.3f"
-)
-
-Lambda = st.sidebar.number_input(
-    "Birth/entry rate (Λ)",
-    min_value=0.0,
-    max_value=20.0,
-    value=10.0,
-    step=0.5
-)
+beta = st.sidebar.number_input("Transmission rate (β)", 0.0001, 0.01, 0.002, 0.0001)
+sigma = st.sidebar.slider("Incubation rate (σ)", 0.1, 1.0, 0.5, 0.1)
+gamma = st.sidebar.slider("Recovery rate (γ)", 0.1, 1.0, 0.3, 0.1)
+gamma_q = st.sidebar.slider("Quarantine recovery rate (γq)", 0.1, 1.0, 0.1, 0.1)
+delta = st.sidebar.slider("Quarantine rate (δ)", 0.0, 0.5, 0.2, 0.01)
+mu = st.sidebar.number_input("Natural death rate (μ)", 0.0, 0.05, 0.01, 0.001)
+Lambda = st.sidebar.number_input("Birth rate (Λ)", 0.0, 20.0, 10.0, 0.5)
 
 
 # =========================
-# RUN MODEL
+# RUN TWO SCENARIOS
 # =========================
-sol = run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda)
+
+# Scenario 1: No quarantine
+sol_no_q = run_model(beta, sigma, gamma, gamma_q, 0.0, mu, Lambda)
+
+# Scenario 2: With quarantine
+sol_q = run_model(beta, sigma, gamma, gamma_q, delta, mu, Lambda)
 
 
 # =========================
-# RESULTS METRICS
+# METRICS (compare peaks)
 # =========================
-I_peak = np.max(sol.y[2])
-t_peak = sol.t[np.argmax(sol.y[2])]
+I_peak_noq = np.max(sol_no_q.y[2])
+I_peak_q = np.max(sol_q.y[2])
+
+reduction = (I_peak_noq - I_peak_q) / I_peak_noq * 100
 
 
-st.subheader("📊 Key Results")
+st.subheader("📊 Comparison Results")
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Peak Infected", f"{I_peak:.2f}")
+    st.metric("Peak (No Quarantine)", f"{I_peak_noq:.2f}")
 
 with col2:
-    st.metric("Time of Peak", f"{t_peak:.1f} days")
+    st.metric("Peak (With Quarantine)", f"{I_peak_q:.2f}")
+
+with col3:
+    st.metric("Reduction", f"{reduction:.1f}%")
 
 
 # =========================
-# PLOT
+# PLOT COMPARISON
 # =========================
 fig, ax = plt.subplots()
 
-ax.plot(sol.t, sol.y[0], label="Susceptible (S)")
-ax.plot(sol.t, sol.y[1], label="Exposed (E)")
-ax.plot(sol.t, sol.y[2], label="Infected (I)")
-ax.plot(sol.t, sol.y[3], label="Quarantined (Q)")
-ax.plot(sol.t, sol.y[4], label="Recovered (R)")
+# No quarantine
+ax.plot(sol_no_q.t, sol_no_q.y[2], "--r", label="Infected (No Quarantine)")
+
+# With quarantine
+ax.plot(sol_q.t, sol_q.y[2], "-b", label="Infected (With Quarantine)")
 
 ax.set_xlabel("Time (days)")
-ax.set_ylabel("Population")
-ax.set_title("SEIQR Disease Dynamics")
+ax.set_ylabel("Infected Population")
+ax.set_title("Impact of Quarantine on Disease Spread")
 ax.legend()
 
 st.pyplot(fig)
